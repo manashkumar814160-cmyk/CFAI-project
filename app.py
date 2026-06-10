@@ -12,6 +12,7 @@ CORS(app)
 
 # ── Bubble Sort ──────────────────────────────────────────────
 def bubble_sort(arr):
+    
     a = copy.copy(arr)
     n = len(a)
     for i in range(n):
