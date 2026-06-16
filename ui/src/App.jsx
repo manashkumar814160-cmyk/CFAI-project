@@ -2,14 +2,83 @@ import { useState } from "react";
 import "./App.css";
 import { dynamic } from "./styles.js";
 
-const API = "http://localhost:5050";
-
 const ALGORITHMS = {
   bubble: { label: "Bubble", full: "Bubble Sort", color: "#c0392b" },
   merge: { label: "Merge", full: "Merge Sort", color: "#2471a3" },
 };
 
 const ALGO_KEYS = ["bubble", "merge"];
+
+function bubbleSort(arr) {
+  const a = [...arr];
+  const n = a.length;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n - i - 1; j++) {
+      if (a[j] > a[j + 1]) {
+        const temp = a[j];
+        a[j] = a[j + 1];
+        a[j + 1] = temp;
+      }
+    }
+  }
+  return a;
+}
+
+function mergeSort(arr) {
+  if (arr.length <= 1) {
+    return [...arr];
+  }
+  const mid = Math.floor(arr.length / 2);
+  const left = mergeSort(arr.slice(0, mid));
+  const right = mergeSort(arr.slice(mid));
+  return merge(left, right);
+}
+
+function merge(left, right) {
+  const result = [];
+  let i = 0;
+  let j = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] <= right[j]) {
+      result.push(left[i]);
+      i++;
+    } else {
+      result.push(right[j]);
+      j++;
+    }
+  }
+  return result.concat(left.slice(i)).concat(right.slice(j));
+}
+
+const RUNS = 7;
+
+function timeSort(fn, arr) {
+  const times = [];
+  for (let r = 0; r < RUNS; r++) {
+    const start = performance.now();
+    fn(arr);
+    times.push(performance.now() - start);
+  }
+  times.sort((a, b) => a - b);
+  const trimmed = times.length > 2 ? times.slice(1, -1) : times;
+  const sum = trimmed.reduce((a, b) => a + b, 0);
+  return sum / trimmed.length;
+}
+
+function buildInsight(results, n) {
+  const bubbleTime = results.bubble.time_ms;
+  const mergeTime = results.merge.time_ms;
+
+  if (Math.abs(bubbleTime - mergeTime) / Math.max(bubbleTime, mergeTime) * 100 < 12) {
+    return `Both algorithms are close on this random input. With n=${n}, Merge Sort still keeps its O(n log n) structure while Bubble Sort does O(n²) work.`;
+  }
+
+  if (mergeTime < bubbleTime) {
+    return `Merge Sort wins (${mergeTime.toFixed(3)} ms vs ${bubbleTime.toFixed(3)} ms). It divides the array in half each time, while Bubble Sort keeps scanning the list repeatedly.`;
+  }
+
+  return `Bubble Sort wins (${bubbleTime.toFixed(3)} ms vs ${mergeTime.toFixed(3)} ms). That would be unusual, because Bubble Sort normally loses on anything but very tiny arrays.`;
+}
 
 function buildRandomNumbers(count, minValue, maxValue) {
   const lower = Math.min(minValue, maxValue);
@@ -27,23 +96,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function post(url, body) {
-    setError("");
-    setResult(null);
-    setLoading(true);
-    try {
-      const response = await fetch(API + url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      setResult(await response.json());
-    } catch {
-      setError("Flask server not reachable on port 5050.");
-    }
-    setLoading(false);
-  }
-
   function runComparison() {
     const nums = input
       .split(/[\s,]+/)
@@ -60,7 +112,47 @@ export default function App() {
       return;
     }
 
-    post("/sort", { numbers: nums, algorithms: ALGO_KEYS });
+    setLoading(true);
+    setError("");
+    setResult(null);
+
+    // Run in setTimeout to allow UI rendering of loading spinner
+    setTimeout(() => {
+      try {
+        const bubbleTimeMs = timeSort(bubbleSort, nums);
+        const mergeTimeMs = timeSort(mergeSort, nums);
+        const sortedOutput = mergeSort(nums);
+
+        const results = {
+          bubble: {
+            name: "Bubble Sort",
+            complexity: "O(n²)",
+            time_ms: bubbleTimeMs,
+          },
+          merge: {
+            name: "Merge Sort",
+            complexity: "O(n log n)",
+            time_ms: mergeTimeMs,
+          },
+        };
+
+        const winner = bubbleTimeMs < mergeTimeMs ? "bubble" : "merge";
+        const insight = buildInsight(results, nums.length);
+
+        setResult({
+          input_size: nums.length,
+          sorted: sortedOutput,
+          results: results,
+          winner: winner,
+          insight: insight,
+        });
+      } catch (err) {
+        setError("An error occurred during calculation.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }, 50);
   }
 
   function generateRandomInput() {
@@ -185,7 +277,7 @@ export default function App() {
                 <button className="run-btn" onClick={runComparison} disabled={loading} type="button">
                   {loading ? "running..." : "run comparison"}
                 </button>
-                <span className="helper-note">The backend compares only Bubble Sort and Merge Sort now.</span>
+                <span className="helper-note">Compared directly in your browser for instant results.</span>
               </div>
             </div>
 
