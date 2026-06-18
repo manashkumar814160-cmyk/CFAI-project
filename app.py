@@ -38,7 +38,10 @@ def _merge(left, right):
     return result + left[i:] + right[j:]
 
 
+
+
 RUNS = 7
+
 
 
 def time_sort(fn, arr):
